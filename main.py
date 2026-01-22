@@ -6,13 +6,136 @@ https://github.com/jnrivra/etiquetatron
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
-from PIL import Image
+from PIL import Image, ImageOps
+import numpy as np
 import io
 import os
 import re
 import sys
 import subprocess
 import threading
+
+# Dimensiones finales de etiqueta (62mm x 150mm a 300 DPI)
+LABEL_WIDTH_MM = 62
+LABEL_HEIGHT_MM = 150
+DPI = 300
+MARGIN_MM = 4  # Margen interno en mm
+
+# Convertir a píxeles
+LABEL_WIDTH_PX = int(LABEL_WIDTH_MM / 25.4 * DPI)   # ~732 px
+LABEL_HEIGHT_PX = int(LABEL_HEIGHT_MM / 25.4 * DPI)  # ~1772 px
+MARGIN_PX = int(MARGIN_MM / 25.4 * DPI)              # ~47 px
+
+
+def detect_content_bounds(img, threshold=250):
+    """
+    Detecta el bounding box del contenido real en una imagen.
+    Busca píxeles que no sean blancos (< threshold).
+    Retorna (left, top, right, bottom) o None si no hay contenido.
+    """
+    # Convertir a escala de grises
+    gray = img.convert('L')
+    pixels = np.array(gray)
+
+    # Encontrar píxeles con contenido (no blancos)
+    content_mask = pixels < threshold
+
+    if not content_mask.any():
+        return None
+
+    # Encontrar los límites del contenido
+    rows = np.any(content_mask, axis=1)
+    cols = np.any(content_mask, axis=0)
+
+    top = np.argmax(rows)
+    bottom = len(rows) - np.argmax(rows[::-1])
+    left = np.argmax(cols)
+    right = len(cols) - np.argmax(cols[::-1])
+
+    return (left, top, right, bottom)
+
+
+def center_on_canvas(content_img, canvas_width, canvas_height, margin):
+    """
+    Centra una imagen de contenido en un canvas blanco con margen.
+    Escala el contenido si es necesario para que quepa con el margen.
+    """
+    content_width, content_height = content_img.size
+
+    # Área disponible para el contenido (canvas - márgenes)
+    available_width = canvas_width - (2 * margin)
+    available_height = canvas_height - (2 * margin)
+
+    # Calcular factor de escala para que quepa
+    scale_w = available_width / content_width
+    scale_h = available_height / content_height
+    scale = min(scale_w, scale_h, 1.0)  # No agrandar, solo reducir si es necesario
+
+    # Escalar contenido si es necesario
+    if scale < 1.0:
+        new_width = int(content_width * scale)
+        new_height = int(content_height * scale)
+        content_img = content_img.resize((new_width, new_height), Image.LANCZOS)
+        content_width, content_height = content_img.size
+
+    # Crear canvas blanco
+    canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
+
+    # Calcular posición centrada
+    x = (canvas_width - content_width) // 2
+    y = (canvas_height - content_height) // 2
+
+    # Pegar contenido centrado
+    if content_img.mode == 'RGBA':
+        canvas.paste(content_img, (x, y), content_img)
+    else:
+        canvas.paste(content_img, (x, y))
+
+    return canvas
+
+
+def find_labels_in_page(img, ventas_count):
+    """
+    Detecta y extrae etiquetas individuales de una página.
+    Divide la página en secciones y detecta el contenido en cada una.
+    """
+    img_width, img_height = img.size
+
+    # Estimar altura de cada sección basándose en cantidad de etiquetas
+    if ventas_count == 0:
+        return []
+
+    section_height = img_height // max(ventas_count, 1)
+
+    labels = []
+    for i in range(ventas_count):
+        # Definir región aproximada de esta etiqueta
+        y_start = i * section_height
+        y_end = min((i + 1) * section_height + 20, img_height)  # +20 para overlap
+
+        # Recortar sección
+        section = img.crop((0, y_start, img_width, y_end))
+
+        # Detectar contenido real dentro de la sección
+        bounds = detect_content_bounds(section)
+
+        if bounds:
+            left, top, right, bottom = bounds
+            # Agregar pequeño padding al recorte
+            padding = 5
+            left = max(0, left - padding)
+            top = max(0, top - padding)
+            right = min(section.width, right + padding)
+            bottom = min(section.height, bottom + padding)
+
+            # Recortar el contenido detectado
+            content = section.crop((left, top, right, bottom))
+            labels.append(content)
+        else:
+            # Si no detecta contenido, usar la sección completa
+            labels.append(section)
+
+    return labels
 
 
 class EtiquetaSeparador(ctk.CTk):
@@ -247,51 +370,42 @@ class EtiquetaSeparador(ctk.CTk):
 
             for page_num in range(total_pages):
                 progress = (page_num + 1) / total_pages
-                self.after(0, lambda p=progress: self.progress_bar.set(p * 0.5))  # Primera mitad para lectura
+                self.after(0, lambda p=progress: self.progress_bar.set(p * 0.5))
 
                 page = doc[page_num]
 
-                # Renderizar página a 200 DPI
-                mat = fitz.Matrix(200/72, 200/72)  # 72 es el DPI base de PDF
+                # Renderizar página a alta resolución (300 DPI)
+                mat = fitz.Matrix(DPI/72, DPI/72)
                 pix = page.get_pixmap(matrix=mat)
 
                 # Convertir a PIL Image
                 img_data = pix.tobytes("png")
                 img = Image.open(io.BytesIO(img_data))
 
-                # Extraer texto de la página para obtener números de venta
+                # Extraer números de venta del texto
                 page_text = page.get_text()
                 ventas = re.findall(r'Venta:\s*(S\d+)', page_text)
 
-                # Dimensiones de la imagen
-                img_width, img_height = img.size
+                if not ventas:
+                    self.after(0, lambda p=page_num+1:
+                        self.append_log(f"Página {p}: sin etiquetas detectadas"))
+                    continue
 
-                # Layout: 1 columna x 6 filas por página
-                margin_x = 29
-                label_width = img_width - (margin_x * 2)
+                # Detectar y extraer etiquetas de la página
+                detected_labels = find_labels_in_page(img, len(ventas))
 
-                # Espaciado calibrado para 200 DPI
-                first_y = 12
-                spacing = 376  # Espaciado entre inicios de etiquetas
-                label_height = 355  # Altura de cada etiqueta
-
-                # Recortar etiquetas que tengan contenido
-                for i, venta in enumerate(ventas):
-                    if i >= 6:  # Máximo 6 etiquetas por página
-                        break
-
-                    y_start = first_y + int(i * spacing)
-                    y_end = y_start + label_height
-
-                    # Asegurar que no exceda los límites
-                    if y_end > img_height:
-                        y_end = img_height - 5
-
-                    pos = (margin_x, y_start, margin_x + label_width, y_end)
-                    label_img = img.crop(pos)
+                # Emparejar etiquetas detectadas con números de venta
+                for i, (venta, label_content) in enumerate(zip(ventas, detected_labels)):
+                    # Centrar contenido en canvas final con margen
+                    final_img = center_on_canvas(
+                        label_content,
+                        LABEL_WIDTH_PX,
+                        LABEL_HEIGHT_PX,
+                        MARGIN_PX
+                    )
 
                     all_labels.append({
-                        'image': label_img,
+                        'image': final_img,
                         'venta': venta,
                         'page': page_num + 1
                     })
