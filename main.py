@@ -1,12 +1,12 @@
 """
-EtiquetaSeparador - Separa etiquetas de envío de PDFs en imágenes individuales
-https://github.com/jnrivra/etiquetatron
+EtiquetaTron - Separa etiquetas de envío de PDFs en imágenes individuales
+Desarrollado para Mawida Dispensario
 """
 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageTk
 import numpy as np
 import io
 import os
@@ -143,8 +143,8 @@ class EtiquetaSeparador(ctk.CTk):
         super().__init__()
 
         # Configuración de la ventana
-        self.title("Etiqueta Separador")
-        self.geometry("600x500")
+        self.title("EtiquetaTron - Mawida")
+        self.geometry("600x580")
         self.resizable(False, False)
 
         # Tema oscuro moderno
@@ -169,26 +169,60 @@ class EtiquetaSeparador(ctk.CTk):
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
 
+    def _load_logo(self):
+        """Carga el logo de Mawida desde archivo o recurso empaquetado."""
+        try:
+            # Buscar logo en diferentes ubicaciones
+            if getattr(sys, 'frozen', False):
+                # Ejecutable PyInstaller
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+
+            logo_path = os.path.join(base_path, 'logo.png')
+
+            if os.path.exists(logo_path):
+                img = Image.open(logo_path)
+                # Redimensionar manteniendo proporción (ancho máximo 280px)
+                max_width = 280
+                ratio = max_width / img.width
+                new_height = int(img.height * ratio)
+                img = img.resize((max_width, new_height), Image.LANCZOS)
+                return ctk.CTkImage(light_image=img, dark_image=img, size=(max_width, new_height))
+        except Exception:
+            pass
+        return None
+
     def create_widgets(self):
         # Frame principal con padding
         self.main_frame = ctk.CTkFrame(self, corner_radius=0)
         self.main_frame.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Logo/Título
+        # Logo de Mawida
+        self.logo_image = self._load_logo()
+        if self.logo_image:
+            self.logo_label = ctk.CTkLabel(
+                self.main_frame,
+                image=self.logo_image,
+                text=""
+            )
+            self.logo_label.pack(pady=(10, 5))
+
+        # Título
         self.title_label = ctk.CTkLabel(
             self.main_frame,
-            text="📦 Etiqueta Separador",
-            font=ctk.CTkFont(size=28, weight="bold")
+            text="EtiquetaTron",
+            font=ctk.CTkFont(size=24, weight="bold")
         )
-        self.title_label.pack(pady=(20, 5))
+        self.title_label.pack(pady=(5, 5))
 
         self.subtitle_label = ctk.CTkLabel(
             self.main_frame,
             text="Convierte PDFs de etiquetas en imágenes individuales",
-            font=ctk.CTkFont(size=13),
+            font=ctk.CTkFont(size=12),
             text_color="gray"
         )
-        self.subtitle_label.pack(pady=(0, 30))
+        self.subtitle_label.pack(pady=(0, 20))
 
         # Frame para selección de archivo
         self.file_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
@@ -273,9 +307,9 @@ class EtiquetaSeparador(ctk.CTk):
         # Créditos
         self.credits_label = ctk.CTkLabel(
             self.main_frame,
-            text="github.com/jnrivra/etiquetatron",
-            font=ctk.CTkFont(size=10),
-            text_color="gray40"
+            text="Mawida Dispensario",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#1a5276"
         )
         self.credits_label.pack(pady=(0, 5))
 

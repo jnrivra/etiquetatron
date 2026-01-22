@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "========================================"
-echo "  Construyendo EtiquetaSeparador"
+echo "  Construyendo EtiquetaTron"
 echo "========================================"
 echo
 
@@ -10,10 +10,10 @@ pip3 install -r requirements.txt pyinstaller
 
 echo
 echo "Creando ejecutable..."
-pyinstaller --onefile --windowed --name "EtiquetaSeparador" main.py
+pyinstaller --onefile --windowed --name "EtiquetaTron" --add-data "logo.png:." main.py
 
 echo
 echo "========================================"
 echo "  Build completado!"
-echo "  El ejecutable esta en: dist/EtiquetaSeparador"
+echo "  El ejecutable esta en: dist/EtiquetaTron"
 echo "========================================"
