@@ -14,16 +14,17 @@ import sys
 import subprocess
 import threading
 
-# Dimensiones finales de etiqueta (62mm x 150mm a 300 DPI)
-LABEL_WIDTH_MM = 62
-LABEL_HEIGHT_MM = 150
+# Dimensiones finales de etiqueta (150mm ancho x 62mm alto a 300 DPI)
+# Etiqueta horizontal/apaisada
+LABEL_WIDTH_MM = 150
+LABEL_HEIGHT_MM = 62
 DPI = 300
-MARGIN_MM = 4  # Margen interno en mm
+MARGIN_MM = 3  # Margen interno en mm
 
 # Convertir a píxeles
-LABEL_WIDTH_PX = int(LABEL_WIDTH_MM / 25.4 * DPI)   # ~732 px
-LABEL_HEIGHT_PX = int(LABEL_HEIGHT_MM / 25.4 * DPI)  # ~1772 px
-MARGIN_PX = int(MARGIN_MM / 25.4 * DPI)              # ~47 px
+LABEL_WIDTH_PX = int(LABEL_WIDTH_MM / 25.4 * DPI)   # ~1772 px
+LABEL_HEIGHT_PX = int(LABEL_HEIGHT_MM / 25.4 * DPI)  # ~732 px
+MARGIN_PX = int(MARGIN_MM / 25.4 * DPI)              # ~35 px
 
 
 def detect_content_bounds(img, threshold=250):
@@ -65,7 +66,7 @@ def detect_content_bounds(img, threshold=250):
 def center_on_canvas(content_img, canvas_width, canvas_height, margin):
     """
     Centra una imagen de contenido en un canvas blanco con margen.
-    Escala el contenido si es necesario para que quepa con el margen.
+    Escala el contenido para LLENAR el área disponible (manteniendo proporción).
     """
     content_width, content_height = content_img.size
 
@@ -73,24 +74,22 @@ def center_on_canvas(content_img, canvas_width, canvas_height, margin):
     available_width = canvas_width - (2 * margin)
     available_height = canvas_height - (2 * margin)
 
-    # Calcular factor de escala para que quepa
+    # Calcular factor de escala para LLENAR el área (puede agrandar o reducir)
     scale_w = available_width / content_width
     scale_h = available_height / content_height
-    scale = min(scale_w, scale_h, 1.0)  # No agrandar, solo reducir si es necesario
+    scale = min(scale_w, scale_h)  # Mantener proporción, llenar lo máximo posible
 
-    # Escalar contenido si es necesario
-    if scale < 1.0:
-        new_width = int(content_width * scale)
-        new_height = int(content_height * scale)
-        content_img = content_img.resize((new_width, new_height), Image.LANCZOS)
-        content_width, content_height = content_img.size
+    # Escalar contenido
+    new_width = int(content_width * scale)
+    new_height = int(content_height * scale)
+    content_img = content_img.resize((new_width, new_height), Image.LANCZOS)
 
     # Crear canvas blanco
     canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
 
     # Calcular posición centrada
-    x = (canvas_width - content_width) // 2
-    y = (canvas_height - content_height) // 2
+    x = (canvas_width - new_width) // 2
+    y = (canvas_height - new_height) // 2
 
     # Pegar contenido centrado
     if content_img.mode == 'RGBA':
@@ -101,35 +100,75 @@ def center_on_canvas(content_img, canvas_width, canvas_height, margin):
     return canvas
 
 
+def find_horizontal_dividers(img, threshold=200):
+    """
+    Encuentra las líneas divisorias horizontales entre etiquetas.
+    Busca filas que sean mayormente blancas/claras (divisores).
+    """
+    gray = img.convert('L')
+    width, height = gray.size
+    pixels = gray.load()
+
+    dividers = [0]  # Empieza desde arriba
+
+    # Buscar filas que sean mayormente claras (posibles divisores)
+    y = 10
+    while y < height - 10:
+        # Contar píxeles claros en esta fila
+        light_count = sum(1 for x in range(width) if pixels[x, y] > threshold)
+        ratio = light_count / width
+
+        # Si más del 95% es claro, es un divisor potencial
+        if ratio > 0.95:
+            # Buscar el centro del divisor
+            start_y = y
+            while y < height - 1 and sum(1 for x in range(width) if pixels[x, y] > threshold) / width > 0.95:
+                y += 1
+            divider_center = (start_y + y) // 2
+
+            # Solo agregar si está suficientemente lejos del anterior
+            if divider_center - dividers[-1] > 100:
+                dividers.append(divider_center)
+        y += 1
+
+    dividers.append(height)  # Termina al final
+    return dividers
+
+
 def find_labels_in_page(img, ventas_count):
     """
     Detecta y extrae etiquetas individuales de una página.
-    Divide la página en secciones y detecta el contenido en cada una.
+    Busca las líneas divisorias horizontales y extrae cada sección.
     """
     img_width, img_height = img.size
 
-    # Estimar altura de cada sección basándose en cantidad de etiquetas
     if ventas_count == 0:
         return []
 
-    section_height = img_height // max(ventas_count, 1)
+    # Intentar encontrar divisores automáticamente
+    dividers = find_horizontal_dividers(img)
+
+    # Si no encontró suficientes divisores, usar división uniforme
+    if len(dividers) - 1 < ventas_count:
+        section_height = img_height // ventas_count
+        dividers = [i * section_height for i in range(ventas_count + 1)]
+        dividers[-1] = img_height
 
     labels = []
-    for i in range(ventas_count):
-        # Definir región aproximada de esta etiqueta
-        y_start = i * section_height
-        y_end = min((i + 1) * section_height + 20, img_height)  # +20 para overlap
+    for i in range(min(ventas_count, len(dividers) - 1)):
+        y_start = dividers[i]
+        y_end = dividers[i + 1] if i + 1 < len(dividers) else img_height
 
         # Recortar sección
         section = img.crop((0, y_start, img_width, y_end))
 
         # Detectar contenido real dentro de la sección
-        bounds = detect_content_bounds(section)
+        bounds = detect_content_bounds(section, threshold=245)
 
         if bounds:
             left, top, right, bottom = bounds
-            # Agregar pequeño padding al recorte
-            padding = 5
+            # Agregar pequeño padding
+            padding = 8
             left = max(0, left - padding)
             top = max(0, top - padding)
             right = min(section.width, right + padding)
@@ -139,7 +178,6 @@ def find_labels_in_page(img, ventas_count):
             content = section.crop((left, top, right, bottom))
             labels.append(content)
         else:
-            # Si no detecta contenido, usar la sección completa
             labels.append(section)
 
     return labels
