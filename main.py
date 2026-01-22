@@ -7,7 +7,6 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
 from PIL import Image, ImageOps, ImageTk
-import numpy as np
 import io
 import os
 import re
@@ -35,24 +34,32 @@ def detect_content_bounds(img, threshold=250):
     """
     # Convertir a escala de grises
     gray = img.convert('L')
-    pixels = np.array(gray)
+    width, height = gray.size
+    pixels = gray.load()
 
-    # Encontrar píxeles con contenido (no blancos)
-    content_mask = pixels < threshold
+    # Encontrar límites del contenido
+    left = width
+    top = height
+    right = 0
+    bottom = 0
 
-    if not content_mask.any():
+    for y in range(height):
+        for x in range(width):
+            if pixels[x, y] < threshold:
+                if x < left:
+                    left = x
+                if x > right:
+                    right = x
+                if y < top:
+                    top = y
+                if y > bottom:
+                    bottom = y
+
+    # Verificar si se encontró contenido
+    if right <= left or bottom <= top:
         return None
 
-    # Encontrar los límites del contenido
-    rows = np.any(content_mask, axis=1)
-    cols = np.any(content_mask, axis=0)
-
-    top = np.argmax(rows)
-    bottom = len(rows) - np.argmax(rows[::-1])
-    left = np.argmax(cols)
-    right = len(cols) - np.argmax(cols[::-1])
-
-    return (left, top, right, bottom)
+    return (left, top, right + 1, bottom + 1)
 
 
 def center_on_canvas(content_img, canvas_width, canvas_height, margin):
