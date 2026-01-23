@@ -14,9 +14,9 @@ import sys
 import subprocess
 import threading
 
-# Dimensiones EXACTAS de salida: 150mm x 62mm a 300 DPI
-FINAL_WIDTH_PX = 1772   # 150mm a 300 DPI
-FINAL_HEIGHT_PX = 732   # 62mm a 300 DPI
+# Dimensiones EXACTAS de salida: 135mm x 59mm a 300 DPI
+FINAL_WIDTH_PX = 1594   # 135mm a 300 DPI
+FINAL_HEIGHT_PX = 697   # 59mm a 300 DPI
 
 
 class EtiquetaSeparador(ctk.CTk):
