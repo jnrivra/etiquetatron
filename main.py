@@ -369,13 +369,13 @@ class EtiquetaSeparador(ctk.CTk):
 
                 if venta in used_names:
                     used_names[venta] += 1
-                    filename = f"{venta}_{used_names[venta]}.jpg"
+                    filename = f"{venta}_{used_names[venta]}.png"
                 else:
                     used_names[venta] = 1
-                    filename = f"{venta}.jpg"
+                    filename = f"{venta}.png"
 
                 filepath = os.path.join(output_dir, filename)
-                label['image'].save(filepath, 'JPEG', quality=95, dpi=(300, 300))
+                label['image'].save(filepath, 'PNG', dpi=(300, 300))
                 saved_count += 1
 
             self.after(0, lambda: self.progress_bar.set(1.0))
