@@ -6,7 +6,7 @@ Desarrollado para Mawida Dispensario
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
-from PIL import Image, ImageOps, ImageTk
+from PIL import Image, ImageTk
 import io
 import os
 import re
@@ -14,173 +14,9 @@ import sys
 import subprocess
 import threading
 
-# Dimensiones finales de etiqueta (150mm ancho x 62mm alto a 300 DPI)
-# Etiqueta horizontal/apaisada
-LABEL_WIDTH_MM = 150
-LABEL_HEIGHT_MM = 62
-DPI = 300
-MARGIN_MM = 3  # Margen interno en mm
-
-# Convertir a píxeles
-LABEL_WIDTH_PX = int(LABEL_WIDTH_MM / 25.4 * DPI)   # ~1772 px
-LABEL_HEIGHT_PX = int(LABEL_HEIGHT_MM / 25.4 * DPI)  # ~732 px
-MARGIN_PX = int(MARGIN_MM / 25.4 * DPI)              # ~35 px
-
-
-def detect_content_bounds(img, threshold=250):
-    """
-    Detecta el bounding box del contenido real en una imagen.
-    Busca píxeles que no sean blancos (< threshold).
-    Retorna (left, top, right, bottom) o None si no hay contenido.
-    """
-    # Convertir a escala de grises
-    gray = img.convert('L')
-    width, height = gray.size
-    pixels = gray.load()
-
-    # Encontrar límites del contenido
-    left = width
-    top = height
-    right = 0
-    bottom = 0
-
-    for y in range(height):
-        for x in range(width):
-            if pixels[x, y] < threshold:
-                if x < left:
-                    left = x
-                if x > right:
-                    right = x
-                if y < top:
-                    top = y
-                if y > bottom:
-                    bottom = y
-
-    # Verificar si se encontró contenido
-    if right <= left or bottom <= top:
-        return None
-
-    return (left, top, right + 1, bottom + 1)
-
-
-def center_on_canvas(content_img, canvas_width, canvas_height, margin):
-    """
-    Centra una imagen de contenido en un canvas blanco con margen.
-    Escala el contenido para LLENAR el área disponible (manteniendo proporción).
-    """
-    content_width, content_height = content_img.size
-
-    # Área disponible para el contenido (canvas - márgenes)
-    available_width = canvas_width - (2 * margin)
-    available_height = canvas_height - (2 * margin)
-
-    # Calcular factor de escala para LLENAR el área (puede agrandar o reducir)
-    scale_w = available_width / content_width
-    scale_h = available_height / content_height
-    scale = min(scale_w, scale_h)  # Mantener proporción, llenar lo máximo posible
-
-    # Escalar contenido
-    new_width = int(content_width * scale)
-    new_height = int(content_height * scale)
-    content_img = content_img.resize((new_width, new_height), Image.LANCZOS)
-
-    # Crear canvas blanco
-    canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
-
-    # Calcular posición centrada
-    x = (canvas_width - new_width) // 2
-    y = (canvas_height - new_height) // 2
-
-    # Pegar contenido centrado
-    if content_img.mode == 'RGBA':
-        canvas.paste(content_img, (x, y), content_img)
-    else:
-        canvas.paste(content_img, (x, y))
-
-    return canvas
-
-
-def find_horizontal_dividers(img, threshold=200):
-    """
-    Encuentra las líneas divisorias horizontales entre etiquetas.
-    Busca filas que sean mayormente blancas/claras (divisores).
-    """
-    gray = img.convert('L')
-    width, height = gray.size
-    pixels = gray.load()
-
-    dividers = [0]  # Empieza desde arriba
-
-    # Buscar filas que sean mayormente claras (posibles divisores)
-    y = 10
-    while y < height - 10:
-        # Contar píxeles claros en esta fila
-        light_count = sum(1 for x in range(width) if pixels[x, y] > threshold)
-        ratio = light_count / width
-
-        # Si más del 95% es claro, es un divisor potencial
-        if ratio > 0.95:
-            # Buscar el centro del divisor
-            start_y = y
-            while y < height - 1 and sum(1 for x in range(width) if pixels[x, y] > threshold) / width > 0.95:
-                y += 1
-            divider_center = (start_y + y) // 2
-
-            # Solo agregar si está suficientemente lejos del anterior
-            if divider_center - dividers[-1] > 100:
-                dividers.append(divider_center)
-        y += 1
-
-    dividers.append(height)  # Termina al final
-    return dividers
-
-
-def find_labels_in_page(img, ventas_count):
-    """
-    Detecta y extrae etiquetas individuales de una página.
-    Busca las líneas divisorias horizontales y extrae cada sección.
-    """
-    img_width, img_height = img.size
-
-    if ventas_count == 0:
-        return []
-
-    # Intentar encontrar divisores automáticamente
-    dividers = find_horizontal_dividers(img)
-
-    # Si no encontró suficientes divisores, usar división uniforme
-    if len(dividers) - 1 < ventas_count:
-        section_height = img_height // ventas_count
-        dividers = [i * section_height for i in range(ventas_count + 1)]
-        dividers[-1] = img_height
-
-    labels = []
-    for i in range(min(ventas_count, len(dividers) - 1)):
-        y_start = dividers[i]
-        y_end = dividers[i + 1] if i + 1 < len(dividers) else img_height
-
-        # Recortar sección
-        section = img.crop((0, y_start, img_width, y_end))
-
-        # Detectar contenido real dentro de la sección
-        bounds = detect_content_bounds(section, threshold=245)
-
-        if bounds:
-            left, top, right, bottom = bounds
-            # Agregar pequeño padding
-            padding = 8
-            left = max(0, left - padding)
-            top = max(0, top - padding)
-            right = min(section.width, right + padding)
-            bottom = min(section.height, bottom + padding)
-
-            # Recortar el contenido detectado
-            content = section.crop((left, top, right, bottom))
-            labels.append(content)
-        else:
-            labels.append(section)
-
-    return labels
+# Dimensiones EXACTAS de salida: 150mm x 62mm a 300 DPI
+FINAL_WIDTH_PX = 1772   # 150mm a 300 DPI
+FINAL_HEIGHT_PX = 732   # 62mm a 300 DPI
 
 
 class EtiquetaSeparador(ctk.CTk):
@@ -398,7 +234,7 @@ class EtiquetaSeparador(ctk.CTk):
         self.processing = True
         self.process_button.configure(state="disabled", text="⏳ Procesando...")
         self.select_button.configure(state="disabled")
-        self.progress_bar.set(0)  # Resetear barra de progreso
+        self.progress_bar.set(0)
 
         # Procesar en hilo separado para no bloquear la UI
         thread = threading.Thread(target=self._process_pdf_thread)
@@ -410,23 +246,21 @@ class EtiquetaSeparador(ctk.CTk):
         try:
             self.after(0, lambda: self.log_message("Iniciando procesamiento..."))
 
-            # Abrir PDF con manejo seguro de recursos
+            # Abrir PDF
             doc = fitz.open(self.pdf_path)
             total_pages = len(doc)
 
-            # Validar que el PDF no esté vacío
             if total_pages == 0:
-                raise ValueError("El PDF está vacío (no tiene páginas)")
+                raise ValueError("El PDF está vacío")
 
             self.after(0, lambda t=total_pages: self.append_log(f"PDF abierto: {t} página(s)"))
 
-            # Extraer fecha del primer texto encontrado
+            # Extraer fecha del primer texto
             first_page_text = doc[0].get_text()
             date_match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', first_page_text)
 
             if date_match:
                 date_str = date_match.group(1)
-                # Convertir de 21/1/2026 a 2026-01-21
                 parts = date_str.split('/')
                 folder_date = f"{parts[2]}-{parts[1].zfill(2)}-{parts[0].zfill(2)}"
             else:
@@ -434,7 +268,7 @@ class EtiquetaSeparador(ctk.CTk):
 
             self.after(0, lambda fd=folder_date: self.append_log(f"Fecha detectada: {fd}"))
 
-            # Crear carpeta de salida (compatible con PyInstaller)
+            # Crear carpeta de salida
             if getattr(sys, 'frozen', False):
                 exe_dir = os.path.dirname(sys.executable)
             else:
@@ -442,46 +276,67 @@ class EtiquetaSeparador(ctk.CTk):
             output_dir = os.path.join(exe_dir, "etiquetas", folder_date)
             os.makedirs(output_dir, exist_ok=True)
 
-            self.after(0, lambda fd=folder_date: self.append_log(f"Carpeta de salida: etiquetas/{fd}/"))
+            self.after(0, lambda fd=folder_date: self.append_log(f"Carpeta: etiquetas/{fd}/"))
 
             # Procesar cada página
             all_labels = []
 
             for page_num in range(total_pages):
-                progress = (page_num + 1) / total_pages
-                self.after(0, lambda p=progress: self.progress_bar.set(p * 0.5))
+                progress = (page_num + 1) / total_pages * 0.5
+                self.after(0, lambda p=progress: self.progress_bar.set(p))
 
                 page = doc[page_num]
-
-                # Renderizar página a alta resolución (300 DPI)
-                mat = fitz.Matrix(DPI/72, DPI/72)
-                pix = page.get_pixmap(matrix=mat)
-
-                # Convertir a PIL Image
-                img_data = pix.tobytes("png")
-                img = Image.open(io.BytesIO(img_data))
-
-                # Extraer números de venta del texto
                 page_text = page.get_text()
+
+                # Buscar todos los números de venta en la página
                 ventas = re.findall(r'Venta:\s*(S\d+)', page_text)
 
                 if not ventas:
-                    self.after(0, lambda p=page_num+1:
-                        self.append_log(f"Página {p}: sin etiquetas detectadas"))
                     continue
 
-                # Detectar y extraer etiquetas de la página
-                detected_labels = find_labels_in_page(img, len(ventas))
+                # Obtener dimensiones de la página
+                page_rect = page.rect
+                page_width = page_rect.width
+                page_height = page_rect.height
 
-                # Emparejar etiquetas detectadas con números de venta
-                for i, (venta, label_content) in enumerate(zip(ventas, detected_labels)):
-                    # Centrar contenido en canvas final con margen
-                    final_img = center_on_canvas(
-                        label_content,
-                        LABEL_WIDTH_PX,
-                        LABEL_HEIGHT_PX,
-                        MARGIN_PX
+                # Cada etiqueta tiene altura de 130 puntos (medido del PDF)
+                # 6 etiquetas por página máximo
+                label_height_pts = 130
+                margin_top = 7  # Margen superior de página
+                margin_sides = 12  # Margen lateral
+
+                # Renderizar a 300 DPI para alta calidad
+                render_scale = 300 / 72  # 72 DPI es el estándar PDF
+
+                for i, venta in enumerate(ventas):
+                    if i >= 6:
+                        break
+
+                    # Calcular posición de esta etiqueta
+                    y_top = margin_top + (i * label_height_pts)
+                    y_bottom = y_top + label_height_pts
+
+                    # Rectángulo de la etiqueta
+                    label_rect = fitz.Rect(
+                        margin_sides,
+                        y_top,
+                        page_width - margin_sides,
+                        y_bottom
                     )
+
+                    # Asegurar que esté dentro de la página
+                    label_rect = label_rect & page_rect
+
+                    # Renderizar esta etiqueta
+                    mat = fitz.Matrix(render_scale, render_scale)
+                    pix = page.get_pixmap(matrix=mat, clip=label_rect)
+
+                    # Convertir a PIL
+                    img_data = pix.tobytes("png")
+                    label_img = Image.open(io.BytesIO(img_data))
+
+                    # Escalar al tamaño final exacto (150mm x 62mm)
+                    final_img = self._scale_to_final(label_img)
 
                     all_labels.append({
                         'image': final_img,
@@ -490,15 +345,13 @@ class EtiquetaSeparador(ctk.CTk):
                     })
 
                 self.after(0, lambda p=page_num+1, t=total_pages, v=len(ventas):
-                    self.append_log(f"Página {p}/{t} procesada - {v} etiquetas"))
+                    self.append_log(f"Página {p}/{t} - {v} etiquetas"))
 
-            # Cerrar documento PDF
             doc.close()
             doc = None
 
-            # Verificar si se encontraron etiquetas
             if not all_labels:
-                self.after(0, lambda: self.append_log("⚠️ No se encontraron etiquetas con formato 'Venta: SXXXXX'"))
+                self.after(0, lambda: self.append_log("⚠️ No se encontraron etiquetas"))
                 self.after(0, lambda: self._finish_processing(0, output_dir))
                 return
 
@@ -513,7 +366,6 @@ class EtiquetaSeparador(ctk.CTk):
 
                 venta = label['venta']
 
-                # Manejar duplicados con contador incremental
                 if venta in used_names:
                     used_names[venta] += 1
                     filename = f"{venta}_{used_names[venta]}.jpg"
@@ -522,25 +374,56 @@ class EtiquetaSeparador(ctk.CTk):
                     filename = f"{venta}.jpg"
 
                 filepath = os.path.join(output_dir, filename)
-
-                # Guardar como JPG con buena calidad
-                label['image'].convert('RGB').save(filepath, 'JPEG', quality=95)
+                label['image'].save(filepath, 'JPEG', quality=95)
                 saved_count += 1
 
             self.after(0, lambda: self.progress_bar.set(1.0))
-
-            # Mensaje final
             self.after(0, lambda: self._finish_processing(saved_count, output_dir))
 
         except Exception as e:
             self.after(0, lambda err=str(e): self._handle_error(err))
         finally:
-            # Asegurar que el documento PDF se cierre siempre
             if doc is not None:
                 try:
                     doc.close()
                 except:
                     pass
+
+    def _scale_to_final(self, img):
+        """
+        Escala la imagen al tamaño final exacto (150mm x 62mm).
+        Mantiene proporción y centra con fondo blanco.
+        """
+        # Tamaño actual
+        src_width, src_height = img.size
+
+        # Margen interno (2mm a 300 DPI = ~24 px)
+        margin = 24
+        available_width = FINAL_WIDTH_PX - (2 * margin)
+        available_height = FINAL_HEIGHT_PX - (2 * margin)
+
+        # Calcular escala para llenar el área disponible
+        scale_w = available_width / src_width
+        scale_h = available_height / src_height
+        scale = min(scale_w, scale_h)
+
+        # Nuevo tamaño
+        new_width = int(src_width * scale)
+        new_height = int(src_height * scale)
+
+        # Redimensionar con alta calidad
+        img_scaled = img.resize((new_width, new_height), Image.LANCZOS)
+
+        # Crear canvas blanco del tamaño final exacto
+        canvas = Image.new('RGB', (FINAL_WIDTH_PX, FINAL_HEIGHT_PX), (255, 255, 255))
+
+        # Centrar
+        x = (FINAL_WIDTH_PX - new_width) // 2
+        y = (FINAL_HEIGHT_PX - new_height) // 2
+
+        canvas.paste(img_scaled, (x, y))
+
+        return canvas
 
     def _finish_processing(self, count, output_dir):
         self.processing = False
@@ -552,16 +435,14 @@ class EtiquetaSeparador(ctk.CTk):
         self.append_log(f"   {count} etiquetas guardadas")
         self.append_log(f"   📁 {output_dir}")
 
-        # Abrir carpeta de salida (con manejo de errores)
         try:
-            if os.name == 'nt':  # Windows
+            if os.name == 'nt':
                 os.startfile(output_dir)
-            elif sys.platform == 'darwin':  # macOS
+            elif sys.platform == 'darwin':
                 subprocess.run(['open', output_dir], check=False)
-            else:  # Linux
+            else:
                 subprocess.run(['xdg-open', output_dir], check=False)
         except Exception:
-            # Si falla al abrir la carpeta, no es crítico
             pass
 
         messagebox.showinfo(
