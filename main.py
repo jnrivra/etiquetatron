@@ -375,7 +375,7 @@ class EtiquetaSeparador(ctk.CTk):
                     filename = f"{venta}.jpg"
 
                 filepath = os.path.join(output_dir, filename)
-                label['image'].save(filepath, 'JPEG', quality=95)
+                label['image'].save(filepath, 'JPEG', quality=95, dpi=(300, 300))
                 saved_count += 1
 
             self.after(0, lambda: self.progress_bar.set(1.0))
