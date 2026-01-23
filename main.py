@@ -299,11 +299,12 @@ class EtiquetaSeparador(ctk.CTk):
                 page_width = page_rect.width
                 page_height = page_rect.height
 
-                # Cada etiqueta tiene altura de 130 puntos (medido del PDF)
+                # Cada etiqueta: altura 120pts, espaciado 130pts (medido del PDF)
                 # 6 etiquetas por página máximo
-                label_height_pts = 130
-                margin_top = 7  # Margen superior de página
-                margin_sides = 12  # Margen lateral
+                label_height_pts = 120  # Altura real de la etiqueta
+                label_spacing = 130     # Espaciado entre etiquetas
+                margin_top = 5          # Y inicial de la primera etiqueta
+                margin_sides = 20       # Margen lateral
 
                 # Renderizar a 300 DPI para alta calidad
                 render_scale = 300 / 72  # 72 DPI es el estándar PDF
@@ -313,7 +314,7 @@ class EtiquetaSeparador(ctk.CTk):
                         break
 
                     # Calcular posición de esta etiqueta
-                    y_top = margin_top + (i * label_height_pts)
+                    y_top = margin_top + (i * label_spacing)
                     y_bottom = y_top + label_height_pts
 
                     # Rectángulo de la etiqueta
