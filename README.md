@@ -1,30 +1,47 @@
-# EtiquetaSeparador
+<div align="center">
 
-Aplicación de escritorio para extraer etiquetas de envío desde archivos PDF y guardarlas como imágenes individuales.
+<img src="logo.png" alt="Mawida Dispensario" width="320">
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
+# EtiquetaTron
+
+**Extrae etiquetas de envío desde PDFs y guárdalas como imágenes individuales listas para imprimir.**
+
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/Plataforma-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#)
+[![License](https://img.shields.io/badge/Licencia-MIT-green.svg)](LICENSE)
+[![Build Windows EXE](https://github.com/jnrivra/etiquetatron/actions/workflows/build-windows.yml/badge.svg)](https://github.com/jnrivra/etiquetatron/actions/workflows/build-windows.yml)
+
+</div>
+
+---
 
 ## Descripción
 
-EtiquetaSeparador automatiza el proceso de extraer etiquetas de envío desde PDFs que contienen múltiples etiquetas por página. La aplicación:
+**EtiquetaTron** es una aplicación de escritorio con interfaz gráfica que automatiza un trabajo repetitivo de logística: tomar un PDF que contiene varias etiquetas de envío por página y recortar cada etiqueta en una imagen individual de alta resolución, lista para imprimir.
 
-- Detecta automáticamente los números de venta (formato `Venta: SXXXXX`)
-- Extrae cada etiqueta como imagen individual
-- Organiza las imágenes en carpetas por fecha
-- Guarda en formato JPEG de alta calidad (95%)
+Desarrollada para **Mawida Dispensario** para agilizar la preparación diaria de despachos.
 
-## Captura de Pantalla
+### ¿Qué hace?
+
+- 🔍 Detecta automáticamente los números de venta dentro del PDF (formato `Venta: SXXXXX`).
+- ✂️ Recorta cada etiqueta y la renderiza a **300 DPI** para impresión nítida.
+- 📐 Normaliza cada etiqueta a un tamaño exacto de **135 mm × 59 mm** (centrada sobre fondo blanco).
+- 📅 Detecta la fecha del PDF y organiza la salida en carpetas por día (`etiquetas/AAAA-MM-DD/`).
+- 🖼️ Guarda cada etiqueta como **PNG** a 300 DPI (mejor compatibilidad de DPI con impresoras).
+- 🧵 Procesa en un hilo separado, con barra de progreso y registro en vivo, sin congelar la interfaz.
+- 📂 Abre automáticamente la carpeta de resultados al terminar.
+
+## Captura de pantalla
 
 ```
 ┌─────────────────────────────────────────┐
-│      📦 Etiqueta Separador              │
+│           [ Mawida Dispensario ]         │
 │                                         │
+│             EtiquetaTron                 │
 │   Convierte PDFs de etiquetas en        │
 │   imágenes individuales                 │
 │                                         │
-│   📄 archivo_seleccionado.pdf           │
+│   📄 despacho_2024-01-15.pdf            │
 │                                         │
 │   [📁 Seleccionar PDF]                  │
 │                                         │
@@ -32,7 +49,7 @@ EtiquetaSeparador automatiza el proceso de extraer etiquetas de envío desde PDF
 │                                         │
 │   ████████████████░░░░ 75%              │
 │                                         │
-│   > Página 3/4 procesada - 6 etiquetas  │
+│   > Página 3/4 - 6 etiquetas            │
 └─────────────────────────────────────────┘
 ```
 
@@ -40,11 +57,11 @@ EtiquetaSeparador automatiza el proceso de extraer etiquetas de envío desde PDF
 
 La aplicación espera PDFs con el siguiente formato:
 
-- **Layout:** 1 columna × 6 filas de etiquetas por página
-- **Identificador:** Cada etiqueta debe contener `Venta: SXXXXX` (donde X son dígitos)
-- **Fecha:** El PDF debe contener una fecha en formato `DD/MM/YYYY` para organizar la salida
+- **Layout:** hasta 6 etiquetas por página, dispuestas en una columna.
+- **Identificador:** cada etiqueta debe contener el texto `Venta: SXXXXX` (donde `X` son dígitos).
+- **Fecha:** el PDF debe contener una fecha en formato `DD/MM/AAAA` para nombrar la carpeta de salida. Si no se encuentra, se usa la carpeta `sin_fecha`.
 
-### Ejemplo de estructura esperada:
+### Estructura esperada
 
 ```
 ┌─────────────────────┐
@@ -63,25 +80,20 @@ La aplicación espera PDFs con el siguiente formato:
 
 ## Instalación
 
-### Opción 1: Ejecutable (Recomendado para usuarios finales)
+### Opción 1: Ejecutable (recomendado para usuarios finales)
 
-Descarga el ejecutable desde [Releases](../../releases):
+Descarga el ejecutable más reciente desde la pestaña [Releases](../../releases) o, en el caso de Windows, desde los [artefactos de GitHub Actions](https://github.com/jnrivra/etiquetatron/actions/workflows/build-windows.yml). No requiere instalación: solo ejecutar.
 
-- **Windows:** `EtiquetaSeparador.exe`
-- **macOS:** `EtiquetaSeparador`
-
-No requiere instalación. Solo ejecutar.
-
-### Opción 2: Desde código fuente
+### Opción 2: Desde el código fuente
 
 ```bash
-# Clonar repositorio
+# Clonar el repositorio
 git clone https://github.com/jnrivra/etiquetatron.git
 cd etiquetatron
 
-# Crear entorno virtual (opcional pero recomendado)
+# Crear un entorno virtual (opcional pero recomendado)
 python -m venv venv
-source venv/bin/activate  # En Windows: venv\Scripts\activate
+source venv/bin/activate        # En Windows: venv\Scripts\activate
 
 # Instalar dependencias
 pip install -r requirements.txt
@@ -92,73 +104,92 @@ python main.py
 
 ## Uso
 
-1. **Abrir** la aplicación
-2. **Seleccionar** un archivo PDF con etiquetas
-3. **Procesar** haciendo clic en el botón verde
-4. **Resultado:** Las imágenes se guardan en `etiquetas/YYYY-MM-DD/`
+1. **Abre** la aplicación.
+2. **Selecciona** un archivo PDF con etiquetas.
+3. **Procesa** haciendo clic en el botón verde *Procesar Etiquetas*.
+4. **Resultado:** las imágenes se guardan en `etiquetas/AAAA-MM-DD/` y la carpeta se abre automáticamente.
 
-La carpeta de salida se abre automáticamente al terminar.
-
-## Estructura de Salida
+### Estructura de salida
 
 ```
 etiquetas/
 └── 2024-01-15/
-    ├── S12345.jpg
-    ├── S12346.jpg
-    ├── S12347.jpg
+    ├── S12345.png
+    ├── S12346.png
+    ├── S12347.png
     └── ...
 ```
 
-Si hay números de venta duplicados, se nombran incrementalmente:
-- `S12345.jpg`
-- `S12345_2.jpg`
-- `S12345_3.jpg`
+Si aparecen números de venta duplicados, se nombran de forma incremental:
 
-## Compilar Ejecutables
-
-### Windows
-
-```batch
-pip install -r requirements.txt
-pyinstaller --onefile --windowed --name "EtiquetaSeparador" main.py
+```
+S12345.png
+S12345_2.png
+S12345_3.png
 ```
 
-El ejecutable se genera en `dist/EtiquetaSeparador.exe`
+## Compilar ejecutables
+
+El proyecto incluye scripts de compilación con [PyInstaller](https://pyinstaller.org/) que empaquetan también el logo.
 
 ### macOS
 
 ```bash
-pip install -r requirements.txt
-pyinstaller --onefile --windowed --name "EtiquetaSeparador" main.py
+./build_mac.sh
 ```
 
-El ejecutable se genera en `dist/EtiquetaSeparador`
+El ejecutable se genera en `dist/EtiquetaTron`.
 
-## Dependencias
+### Windows
 
-| Paquete | Versión | Descripción |
-|---------|---------|-------------|
-| customtkinter | 5.2.1 | Interfaz gráfica moderna |
-| PyMuPDF | 1.23.8 | Procesamiento de PDFs |
-| Pillow | 10.2.0 | Manipulación de imágenes |
-| pyinstaller | 6.3.0 | Generación de ejecutables |
+```batch
+build_windows.bat
+```
+
+El ejecutable se genera en `dist\EtiquetaTron.exe`.
+
+### Compilación automática (CI)
+
+Cada *push* a `main` dispara el workflow [`build-windows.yml`](.github/workflows/build-windows.yml), que compila el `.exe` de Windows en GitHub Actions y lo publica como artefacto descargable.
+
+### Comando manual equivalente
+
+```bash
+pyinstaller --onefile --windowed --name "EtiquetaTron" --add-data "logo.png:." main.py
+# En Windows usa ; en lugar de : -> --add-data "logo.png;."
+```
+
+## Stack tecnológico
+
+| Paquete | Versión | Rol |
+|---------|---------|-----|
+| [customtkinter](https://github.com/TomSchimansky/CustomTkinter) | 5.2.1 | Interfaz gráfica moderna (tema oscuro) |
+| [PyMuPDF](https://pymupdf.readthedocs.io/) (fitz) | 1.23.8 | Lectura y renderizado de PDFs |
+| [Pillow](https://python-pillow.org/) | 10.2.0 | Manipulación y guardado de imágenes |
+| [PyInstaller](https://pyinstaller.org/) | 6.3.0 | Empaquetado de ejecutables |
 
 ## Personalización
 
-Los parámetros de recorte están calibrados para un layout específico. Si tu PDF tiene un formato diferente, puedes ajustar estos valores en `main.py`:
+Los parámetros de recorte están calibrados para el layout de Mawida. Si tu PDF tiene un formato distinto, ajusta estos valores en `main.py` (método `_process_pdf_thread`):
 
 ```python
-margin_x = 29          # Margen izquierdo en píxeles
-first_y = 12           # Posición Y de la primera etiqueta
-spacing = 376          # Espacio entre etiquetas
-label_height = 355     # Altura de cada etiqueta
+label_height_pts = 120  # Altura de cada etiqueta (en puntos PDF)
+label_spacing    = 130  # Espaciado vertical entre etiquetas
+margin_top       = 5    # Posición Y de la primera etiqueta
+margin_sides     = 20   # Margen lateral
+```
+
+Y el tamaño final de salida en las constantes superiores:
+
+```python
+FINAL_WIDTH_PX  = 1594  # 135 mm a 300 DPI
+FINAL_HEIGHT_PX = 697   # 59 mm a 300 DPI
 ```
 
 ## Licencia
 
-MIT License - ver [LICENSE](LICENSE) para más detalles.
+Distribuido bajo licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 
 ## Autor
 
-Desarrollado para automatizar procesos de logística y envíos.
+Desarrollado por **Juan Enrique Rivera Olivares** ([@jnrivra](https://github.com/jnrivra)) para automatizar procesos de logística y despacho.
