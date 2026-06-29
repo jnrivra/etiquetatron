@@ -336,7 +336,7 @@ class EtiquetaSeparador(ctk.CTk):
                     img_data = pix.tobytes("png")
                     label_img = Image.open(io.BytesIO(img_data))
 
-                    # Escalar al tamaño final exacto (150mm x 62mm)
+                    # Escalar al tamaño final exacto (135mm x 59mm)
                     final_img = self._scale_to_final(label_img)
 
                     all_labels.append({
@@ -387,13 +387,13 @@ class EtiquetaSeparador(ctk.CTk):
             if doc is not None:
                 try:
                     doc.close()
-                except:
+                except Exception:
                     pass
 
     def _scale_to_final(self, img):
         """
-        Escala la imagen al tamaño final exacto (150mm x 62mm).
-        Mantiene proporción y centra con fondo blanco.
+        Escala la imagen al tamaño final exacto (135mm x 59mm a 300 DPI).
+        Mantiene proporción y centra sobre un fondo blanco.
         """
         # Tamaño actual
         src_width, src_height = img.size
